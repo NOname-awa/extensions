@@ -1,7 +1,7 @@
 (function(Scratch) {
     'use strict';
     if (!Scratch.extensions.unsandboxed) {
-      throw new Error('This Hello World example must run unsandboxed');
+      throw new Error('PostProcessing must run unsandboxed');
     }
     const vm = Scratch.vm;
     const renderer = vm.renderer;
@@ -20,9 +20,9 @@
       v_texcoord = a_texcoord;
       vColor = vec4(1.0, 1.0, 1.0, 1.0);
       }
-    `
-  
-    var aaa = 
+    `;
+
+    var aaa =
     `
       precision mediump float;
       
@@ -47,8 +47,8 @@
         gl_FragColor=vec4(ColorR,ColorG,ColorB,1.0);
 
       }
-    `
-    var fragmentShaderCode = 
+    `;
+    var fragmentShaderCode =
     `
       precision mediump float;
       
@@ -71,8 +71,8 @@
         gl_FragColor=vec4(ColorR,ColorG,ColorB,1.0);
 
       }
-    `
-  
+    `;
+
     var quadPositions = [
       -1, -1,
       -1, 1,
@@ -81,7 +81,7 @@
       -1, 1,
       1, 1,
     ];
-  
+
     var quadCoords = [
       0, 0,
       0, 1,
@@ -90,14 +90,12 @@
       0, 1,
       1, 1,
     ];
-  
 
-  
 
-    /**
-     * Draw all current drawables and present the frame on the canvas.
-     */
-    const createshader = function(gl, type, source) {
+
+
+
+    function createshader(gl, type, source) {
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
         gl.compileShader(shader);
@@ -108,7 +106,7 @@
         console.log(gl.getShaderInfoLog(shader));
         gl.deleteShader(shader);
       }
-      const createProgram = function(gl, vertexShader, fragmentShader) {
+      function createProgram(gl, vertexShader, fragmentShader) {
         const program = gl.createProgram();
         gl.attachShader(program, vertexShader);
         gl.attachShader(program, fragmentShader);
@@ -120,9 +118,13 @@
         console.log(gl.getProgramInfoLog(program));
         gl.deleteProgram(program);
       }
-      var drawframebuffer = null
-      var drawtex = null
-      var drawprogram = createProgram(gl,createshader(gl,gl.VERTEX_SHADER,vertexShaderCode),createshader(gl,gl.FRAGMENT_SHADER,fragmentShaderCode))
+      var drawframebuffer = null;
+      var framebuffersize = {
+        Width:0,
+        Height:0
+      }
+      var framebuffertexture = null;
+      var drawprogram = createProgram(gl,createshader(gl,gl.VERTEX_SHADER,vertexShaderCode),createshader(gl,gl.FRAGMENT_SHADER,fragmentShaderCode));
       const positionLocation = gl.getAttribLocation(drawprogram, 'a_position');
       const texcoordLocation = gl.getAttribLocation(drawprogram, 'a_texcoord');
       const textureLocation = gl.getUniformLocation(drawprogram, 'u_texture');
@@ -137,20 +139,37 @@
     const matrixLocation = gl.getUniformLocation(drawprogram, 'u_matrix');
     const projectionLocation = gl.getUniformLocation(drawprogram, 'u_projectionMatrix');
     */
+      var uniformLocationBuffer = {
 
-    var quadPositionBuffer 
-  
+      };
+    function getUniformLocation(gl,uname){
+      if (uniformLocationBuffer[uname] == null){
+        uniformLocationBuffer[uname] = gl.getUniformLocation(drawprogram, uname);
+      }
+      console.log("location: ",uniformLocationBuffer[uname],"data: " + gl.getUniform(drawprogram,uniformLocationBuffer[uname]));
+      return uniformLocationBuffer[uname];
+  }
+      function setUniform1f(gl,uname,value){
+        gl.uniform1f(getUniformLocation(gl,uname),value);
 
-  
-    var quadTexCoordBuffer
+      }
+    function setUniform2fv (gl,uname,value1,value2){
+        gl.uniform2fv(getUniformLocation(gl,uname),[value1,value2]);
+      }
+
+    var quadPositionBuffer;
 
 
 
-    const bindFramebufferInfo = function(gl, framebufferInfo, target) {
+    var quadTexCoordBuffer;
+
+
+
+    function bindFramebufferInfo(gl, framebufferInfo, target) {
         target = target || gl.FRAMEBUFFER;
         gl.bindFramebuffer(target, framebufferInfo ? framebufferInfo.framebuffer : null);
       }
-    const createFramebuffer =function(gl, attachments, width, height, target) {
+    function createFramebuffer(gl, attachments, width, height, target) {
         target = target || gl.FRAMEBUFFER;
         const framebuffer = gl.createFramebuffer();
         gl.bindFramebuffer(target, framebuffer);
@@ -169,50 +188,89 @@
           height: height,
         };
       }
+    //check framebuffer & buffer status
+    const rendererDrawPrefix = (function(){
+      if (framebuffertexture == null ){
+        framebuffertexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, framebuffertexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        framebuffersize.Width = gl.canvas.width;
+        framebuffersize.Height = gl.canvas.height;
+      }
+      if (framebuffersize.Height != gl.canvas.height || framebuffersize.Width != gl.canvas.width){
+        updateFrameBuffer(gl.canvas.width,gl.canvas.height);
+        framebuffersize.Width = gl.canvas.width;
+        framebuffersize.Height = gl.canvas.height;
+      }
+      if (quadTexCoordBuffer == null){
+        quadTexCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadTexCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quadCoords), gl.STATIC_DRAW);
+      }
+      if (quadPositionBuffer == null){
+          quadPositionBuffer = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, quadPositionBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quadPositions), gl.STATIC_DRAW);
+      }
+      if (drawframebuffer == null) {
+        drawframebuffer = createFramebuffer(gl,
+          [
+            {
+              attachment: gl.COLOR_ATTACHMENT0,
+              texTarget: gl.TEXTURE_2D,
+              texture: framebuffertexture,
+              level: 0
+            }
+          ],
+        canvas.width,
+        canvas.height
+        );
+        gl.uniform1i(textureLocation, framebuffertexture);
+        setUniform2fv(gl,"_BlockSize", 8, 8);
+        setUniform2fv(gl,"direction_r", 1.0, 0.0);
+        setUniform2fv(gl,"direction_g", 0.4, 1.0 );
+        setUniform2fv(gl,"direction_b",  -0.7, -0.3);
+      }
+    }).bind(renderer);
+    //draw framebuffer texture in screen
+    const rendererDrawPostfix = (function(){
+          bindFramebufferInfo(gl, null); //modified
+          gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+          gl.clearColor(...this._backgroundColor4f);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          gl.bindTexture(gl.TEXTURE_2D, framebuffertexture);
+
+          gl.useProgram(drawprogram);
+
+          gl.bindBuffer(gl.ARRAY_BUFFER, quadPositionBuffer);
+          gl.enableVertexAttribArray(positionLocation);
+          gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+          gl.bindBuffer(gl.ARRAY_BUFFER, quadTexCoordBuffer);
+          gl.enableVertexAttribArray(texcoordLocation);
+          gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+          
+          // draw the quad (2 triangles, 6 vertices)
+          gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }).bind(renderer);
+
+
     const draw = (function(){
           if (!this.dirty) {
               return;
           }
           this.dirty = false;
-          if(drawtex==null){
-            drawtex= gl.createTexture() 
-            gl.bindTexture(gl.TEXTURE_2D, drawtex);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.bindTexture(gl.TEXTURE_2D, null);
 
-            
-          }
-          if(quadTexCoordBuffer==null){
-            quadTexCoordBuffer=gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, quadTexCoordBuffer);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quadCoords), gl.STATIC_DRAW);
-          }
-          if(quadPositionBuffer==null){
-              quadPositionBuffer = gl.createBuffer();
-              gl.bindBuffer(gl.ARRAY_BUFFER, quadPositionBuffer);
-              gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quadPositions), gl.STATIC_DRAW);
-          }
-          if(drawframebuffer==null)
-          {
-            drawframebuffer = createFramebuffer(gl, 
-              [
-                {
-                  attachment:gl.COLOR_ATTACHMENT0,
-                  texTarget:gl.TEXTURE_2D,
-                  texture:drawtex,
-                  level:0
-                }
-              ],
-            canvas.width,
-            canvas.height
-            )
-            
-          }
+          rendererDrawPrefix(); //append
+
           bindFramebufferInfo(gl, drawframebuffer); //modified
+
           this._doExitDrawRegion();
           gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
           gl.clearColor(...this._backgroundColor4f);
@@ -226,64 +284,76 @@
               this._snapshotCallbacks.forEach(cb => cb(snapshot));
               this._snapshotCallbacks = [];
           }
-          bindFramebufferInfo(gl, null); //modified
-          gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-          gl.clearColor(...this._backgroundColor4f);
-          gl.clear(gl.COLOR_BUFFER_BIT);
-          gl.bindTexture(gl.TEXTURE_2D, drawtex);
 
-          gl.useProgram(drawprogram);
+          rendererDrawPostfix(); //append
 
-          gl.bindBuffer(gl.ARRAY_BUFFER, quadPositionBuffer);
-          gl.enableVertexAttribArray(positionLocation);
-          gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-          gl.bindBuffer(gl.ARRAY_BUFFER, quadTexCoordBuffer);
-          gl.enableVertexAttribArray(texcoordLocation);
-          gl.vertexAttribPointer(texcoordLocation, 2, gl.FLOAT, false, 0, 0);
-
-          // Tell the shader to get the texture from texture unit 0
-          gl.uniform1i(textureLocation, drawtex);
-          gl.uniform2fv(BlockSizeLocation, [8, 8]);
-          gl.uniform2fv(direction_rLocation, [1.0, 0.0]);
-          gl.uniform2fv(direction_gLocation, [0.4, 1.0 ]);
-          gl.uniform2fv(direction_bLocation, [ -0.7, -0.3]);
-          // draw the quad (2 triangles, 6 vertices)
-          gl.drawArrays(gl.TRIANGLES, 0, 6);
 
       }).bind(renderer);
 
-    renderer.draw=draw;
-    class HelloWorld {
+    renderer.draw = draw;
+    vm.runtime.on('STAGE_SIZE_CHANGED',_ => updateFrameBuffer());      
+    function updateFrameBuffer(){
+      console.log('is pain the only way to get stronger?')
+      if (framebuffertexture != null){
+        console.log('never thought of it.')
+        gl.bindTexture(gl.TEXTURE_2D, framebuffertexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      }
+    }
+    class postprocessing {
       getInfo() {
         return {
-          id: 'effect',
-          name: 'Effect',
+          id: 'postprocessing',
+          name: 'Post-Processing',
           blocks: [
             {
-              opcode: 'hello',
-              text: 'uniform1f [X] [Y]',
+              opcode: 'opcodeUniform2fv',
+              text: 'uniform2fv Name:[NAME] Value:[X] [Y]',
               blockType: Scratch.BlockType.COMMAND,
               arguments: {
+                NAME: {
+                  type: Scratch.ArgumentType.STRING,
+                  defaultValue: "_BlockSize"
+                },
                 X: {
                     type: Scratch.ArgumentType.NUMBER,
-                    defaultValue: 0.1
+                    defaultValue: 8
                 },
                 Y: {
                   type: Scratch.ArgumentType.NUMBER,
-                  defaultValue: 0
+                  defaultValue: 8
               }
             },
+            filter: [Scratch.TargetType.SPRITE]
+            },
+            {
+              opcode: 'opcodeUniform1f',
+              text: 'uniform1f Name:[NAME] Value:[X]',
+              blockType: Scratch.BlockType.COMMAND,
+              arguments: {
+                NAME: {
+                  type: Scratch.ArgumentType.STRING,
+                  defaultValue: "_Time"
+                },
+                X: {
+                    type: Scratch.ArgumentType.NUMBER,
+                    defaultValue: 0
+                }
+              },
+              filter: [Scratch.TargetType.SPRITE]
             }
+
           ]
         };
       }
-      hello({X,Y}) {
-        gl.uniform1f(AmplitudeLocation, X);
-        gl.uniform1f(TimeLocation, Y);
+      opcodeUniform2fv({NAME,X,Y}) {
+        setUniform2fv(gl,NAME,X,Y);
+
+      }
+      opcodeUniform1f({NAME,X}) {
+        setUniform1f(gl,NAME,X);
 
       }
     }
-    Scratch.extensions.register(new HelloWorld());
+    Scratch.extensions.register(new postprocessing());
   })(Scratch);
-  
