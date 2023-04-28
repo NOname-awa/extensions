@@ -91,7 +91,7 @@
       1, 1,
     ];
 
-
+    var uniformLocationBuffer = {};
 
 
 
@@ -128,25 +128,32 @@
       const positionLocation = gl.getAttribLocation(drawprogram, 'a_position');
       const texcoordLocation = gl.getAttribLocation(drawprogram, 'a_texcoord');
       const textureLocation = gl.getUniformLocation(drawprogram, 'u_texture');
+
+      gl.uniform1i(textureLocation, framebuffertexture);
+        setUniform2fv(gl,"_BlockSize", 8, 8);
+        setUniform2fv(gl,"direction_r", 1.0, 0.0);
+        setUniform2fv(gl,"direction_g", 0.4, 1.0 );
+        setUniform2fv(gl,"direction_b",  -0.7, -0.3);
+    /*
+      
       const BlockSizeLocation = gl.getUniformLocation(drawprogram, '_BlockSize');
       const AmplitudeLocation = gl.getUniformLocation(drawprogram, '_Amplitude');
       const TimeLocation = gl.getUniformLocation(drawprogram, '_Time');
       const direction_rLocation = gl.getUniformLocation(drawprogram, 'direction_r');
       const direction_gLocation = gl.getUniformLocation(drawprogram, 'direction_g');
-      const direction_bLocation = gl.getUniformLocation(drawprogram, 'direction_b');
+      const direction_bLocation = gl.getUniformLocation(drawprogram, 'direction_b'):
+      */
     // lookup uniforms
     /*
     const matrixLocation = gl.getUniformLocation(drawprogram, 'u_matrix');
     const projectionLocation = gl.getUniformLocation(drawprogram, 'u_projectionMatrix');
     */
-      var uniformLocationBuffer = {
-
-      };
+      
     function getUniformLocation(gl,uname){
       if (uniformLocationBuffer[uname] == null){
         uniformLocationBuffer[uname] = gl.getUniformLocation(drawprogram, uname);
       }
-      console.log("location: ",uniformLocationBuffer[uname],"data: " + gl.getUniform(drawprogram,uniformLocationBuffer[uname]));
+      console.log("location: ",uniformLocationBuffer[uname]);
       return uniformLocationBuffer[uname];
   }
       function setUniform1f(gl,uname,value){
@@ -230,12 +237,8 @@
         canvas.width,
         canvas.height
         );
-        gl.uniform1i(textureLocation, framebuffertexture);
-        setUniform2fv(gl,"_BlockSize", 8, 8);
-        setUniform2fv(gl,"direction_r", 1.0, 0.0);
-        setUniform2fv(gl,"direction_g", 0.4, 1.0 );
-        setUniform2fv(gl,"direction_b",  -0.7, -0.3);
       }
+    
     }).bind(renderer);
     //draw framebuffer texture in screen
     const rendererDrawPostfix = (function(){
@@ -341,10 +344,39 @@
                 }
               },
               filter: [Scratch.TargetType.SPRITE]
-            }
+            },
+            {
+              opcode: 'opcodeMenuTest',
+              text: 'Menu [DynamicMenu]',
+              blockType: Scratch.BlockType.REPORTER,
+              arguments: {
+                DynamicMenu: {
+                  type: Scratch.ArgumentType.STRING,
+                  menu: 'MENU'
+                },
+              },
+              filter: [Scratch.TargetType.SPRITE]
+            },
 
-          ]
+          ],
+          menus: {
+            MENU: {
+              acceptReporters: true,
+              items: "getDynamicMenuItems"
+            },
+          }
         };
+      }
+      opcodeMenuTest({DynamicMenu}) {
+        return DynamicMenu;
+      }
+      getDynamicMenuItems(args,arg2) {
+        console.log(args,arg2)
+        return ["你还觉得","一切","从未改变","吗？"];
+        ["如果可以",'一切都应该停在这里','我怕了.','我害怕了.','我开始害怕了.' ];
+        ['是我自己杀死过去的自己的','为什么我开始感到怀念了'];
+        ['人是不是','只有在','失去了','才会','懂得珍惜?']; 
+        ["未知苦处","不信神佛"];
       }
       opcodeUniform2fv({NAME,X,Y}) {
         setUniform2fv(gl,NAME,X,Y);
