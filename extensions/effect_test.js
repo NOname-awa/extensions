@@ -21,43 +21,47 @@
       vColor = vec4(1.0, 1.0, 1.0, 1.0);
       }
     `;
+    var noneShaderCode = `
+    precision mediump float;
+      
+    varying vec2 v_texcoord;
+    varying vec4 vColor;      
+    uniform sampler2D u_texture;
 
-    var aaa =
+    void main() {
+      gl_FragColor=texture2D(u_texture,v_texcoord);
+    }
+    `
+    var dispersionShaderCode =
     `
       precision mediump float;
       
       varying vec2 v_texcoord;
       varying vec4 vColor;      
       uniform sampler2D u_texture;
-      uniform float _Time;
-      uniform vec2 _BlockSize;
       uniform float _Amplitude;
       uniform vec2 direction_r ;
       uniform vec2 direction_g ;
       uniform vec2 direction_b ;
-      float randomNoise(vec2 seed)
-      {
-          return fract(sin(dot(seed *_Time , vec2(17.13, 3.71))) * 43758.5453123);
-      }
       void main() {
 
-        float ColorR = texture2D(u_texture,v_texcoord + normalize( direction_r )*0.01).r ;
-        float ColorG = texture2D(u_texture,v_texcoord + normalize( direction_g )*0.01).g;
-        float ColorB = texture2D(u_texture,v_texcoord + normalize( direction_b )*0.01).b;
+        float ColorR = texture2D(u_texture,v_texcoord + normalize( direction_r )*_Amplitude).r ;
+        float ColorG = texture2D(u_texture,v_texcoord + normalize( direction_g )*_Amplitude).g;
+        float ColorB = texture2D(u_texture,v_texcoord + normalize( direction_b )*_Amplitude).b;
         gl_FragColor=vec4(ColorR,ColorG,ColorB,1.0);
 
       }
     `;
-    var fragmentShaderCode =
+    var GlitchShaderCode =
     `
       precision mediump float;
       
       varying vec2 v_texcoord;
       varying vec4 vColor;      
       uniform sampler2D u_texture;
+      uniform float _Amplitude;
       uniform float _Time;
       uniform vec2 _BlockSize;
-      uniform float _Amplitude;
       float randomNoise(vec2 seed)
       {
           return fract(sin(dot(seed *_Time , vec2(17.13, 3.71))) * 43758.5453123);
@@ -90,70 +94,10 @@
       0, 1,
       1, 1,
     ];
-
-    var uniformLocationBuffer = {};
-
-
-
-    function createshader(gl, type, source) {
-        const shader = gl.createShader(type);
-        gl.shaderSource(shader, source);
-        gl.compileShader(shader);
-        const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
-        if (success) {
-          return shader;
-        }
-        console.log(gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
-      }
-      function createProgram(gl, vertexShader, fragmentShader) {
-        const program = gl.createProgram();
-        gl.attachShader(program, vertexShader);
-        gl.attachShader(program, fragmentShader);
-        gl.linkProgram(program);
-        const success = gl.getProgramParameter(program, gl.LINK_STATUS);
-        if (success) {
-          return program;
-        }
-        console.log(gl.getProgramInfoLog(program));
-        gl.deleteProgram(program);
-      }
-      var drawframebuffer = null;
-      var framebuffersize = {
-        Width:0,
-        Height:0
-      }
-      var framebuffertexture = null;
-      var drawprogram = createProgram(gl,createshader(gl,gl.VERTEX_SHADER,vertexShaderCode),createshader(gl,gl.FRAGMENT_SHADER,fragmentShaderCode));
-      const positionLocation = gl.getAttribLocation(drawprogram, 'a_position');
-      const texcoordLocation = gl.getAttribLocation(drawprogram, 'a_texcoord');
-      const textureLocation = gl.getUniformLocation(drawprogram, 'u_texture');
-
-      gl.uniform1i(textureLocation, framebuffertexture);
-        setUniform2fv(gl,"_BlockSize", 8, 8);
-        setUniform2fv(gl,"direction_r", 1.0, 0.0);
-        setUniform2fv(gl,"direction_g", 0.4, 1.0 );
-        setUniform2fv(gl,"direction_b",  -0.7, -0.3);
-    /*
-      
-      const BlockSizeLocation = gl.getUniformLocation(drawprogram, '_BlockSize');
-      const AmplitudeLocation = gl.getUniformLocation(drawprogram, '_Amplitude');
-      const TimeLocation = gl.getUniformLocation(drawprogram, '_Time');
-      const direction_rLocation = gl.getUniformLocation(drawprogram, 'direction_r');
-      const direction_gLocation = gl.getUniformLocation(drawprogram, 'direction_g');
-      const direction_bLocation = gl.getUniformLocation(drawprogram, 'direction_b'):
-      */
-    // lookup uniforms
-    /*
-    const matrixLocation = gl.getUniformLocation(drawprogram, 'u_matrix');
-    const projectionLocation = gl.getUniformLocation(drawprogram, 'u_projectionMatrix');
-    */
-      
     function getUniformLocation(gl,uname){
       if (uniformLocationBuffer[uname] == null){
         uniformLocationBuffer[uname] = gl.getUniformLocation(drawprogram, uname);
       }
-      console.log("location: ",uniformLocationBuffer[uname]);
       return uniformLocationBuffer[uname];
   }
       function setUniform1f(gl,uname,value){
@@ -195,6 +139,83 @@
           height: height,
         };
       }
+    function createshader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+      if (success) {
+        return shader;
+      }
+      console.log(gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+    }
+
+    function createProgram(gl, vertexShader, fragmentShader) {
+      const program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      const success = gl.getProgramParameter(program, gl.LINK_STATUS);
+      if (success) {
+        return program;
+      }
+      console.log(gl.getProgramInfoLog(program));
+      gl.deleteProgram(program);
+    }
+
+    var initializationShader =  (function(){
+      var programs = {
+        none:null,
+        glitch:null,
+        dispersion:null
+      }
+      programs.none=createProgram(gl,createshader(gl,gl.VERTEX_SHADER,vertexShaderCode),createshader(gl,gl.FRAGMENT_SHADER,noneShaderCode));
+      programs.glitch=createProgram(gl,createshader(gl,gl.VERTEX_SHADER,vertexShaderCode),createshader(gl,gl.FRAGMENT_SHADER,GlitchShaderCode));
+      programs.dispersion=createProgram(gl,createshader(gl,gl.VERTEX_SHADER,vertexShaderCode),createshader(gl,gl.FRAGMENT_SHADER,dispersionShaderCode));
+      return programs;
+    })
+
+
+    var uniformLocationBuffer = {};
+
+
+
+    
+      
+      var drawframebuffer = null;
+      var framebuffersize = {
+        Width:0,
+        Height:0
+      }
+      
+      var framebuffertexture = null;
+      var shaderPrograms = initializationShader()
+      console.log(shaderPrograms);
+      var drawprogram = shaderPrograms.none;
+      var drawprogram_mode = "none";
+      var  positionLocation = gl.getAttribLocation(drawprogram, 'a_position');
+      var  texcoordLocation = gl.getAttribLocation(drawprogram, 'a_texcoord');
+      var textureLocation = gl.getUniformLocation(drawprogram, 'u_texture');
+
+      gl.uniform1i(textureLocation, framebuffertexture);
+       
+    /*
+      
+      const BlockSizeLocation = gl.getUniformLocation(drawprogram, '_BlockSize');
+      const AmplitudeLocation = gl.getUniformLocation(drawprogram, '_Amplitude');
+      const TimeLocation = gl.getUniformLocation(drawprogram, '_Time');
+      const direction_rLocation = gl.getUniformLocation(drawprogram, 'direction_r');
+      const direction_gLocation = gl.getUniformLocation(drawprogram, 'direction_g');
+      const direction_bLocation = gl.getUniformLocation(drawprogram, 'direction_b'):
+      */
+    // lookup uniforms
+    /*
+    const matrixLocation = gl.getUniformLocation(drawprogram, 'u_matrix');
+    const projectionLocation = gl.getUniformLocation(drawprogram, 'u_projectionMatrix');
+    */
+      
+    
     //check framebuffer & buffer status
     const rendererDrawPrefix = (function(){
       if (framebuffertexture == null ){
@@ -303,6 +324,10 @@
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
       }
     }
+    function deg2rad(degrees) {
+      //scratch always change degrees by -90
+      return (degrees-90) * Math.PI / 180;
+    }
     class postprocessing {
       getInfo() {
         return {
@@ -327,7 +352,6 @@
                   defaultValue: 8
               }
             },
-            filter: [Scratch.TargetType.SPRITE]
             },
             {
               opcode: 'opcodeUniform1f',
@@ -343,41 +367,135 @@
                     defaultValue: 0
                 }
               },
-              filter: [Scratch.TargetType.SPRITE]
             },
             {
-              opcode: 'opcodeMenuTest',
-              text: 'Menu [DynamicMenu]',
-              blockType: Scratch.BlockType.REPORTER,
+              opcode: 'opcodeChangePostProcess',
+              text: 'change effect to [Menu]',
+              blockType: Scratch.BlockType.COMMAND,
               arguments: {
-                DynamicMenu: {
+                Menu: {
                   type: Scratch.ArgumentType.STRING,
-                  menu: 'MENU'
+                  menu: 'PostProcess'
                 },
               },
-              filter: [Scratch.TargetType.SPRITE]
             },
+            {
+              opcode: 'opcodeChangeGlitch',
+              text: 'Glitch Amplitude:[Amplitude]%, BlockSize X:[BlockSize_X] Y:[BlockSize_Y], Time:[Time]',
+              blockType: Scratch.BlockType.COMMAND,
+              arguments: {
+                Amplitude: {
+                  type: Scratch.ArgumentType.NUMBER,
+                  defaultValue: 1
+                },
+                BlockSize_X: {
+                  type: Scratch.ArgumentType.NUMBER,
+                  defaultValue: 8
+                },
+                BlockSize_Y: {
+                  type: Scratch.ArgumentType.NUMBER,
+                  defaultValue: 8
+                },
+                Time: {
+                  type: Scratch.ArgumentType.NUMBER,
+                  defaultValue: 0
+                }
+              },
+            },
+            {
+              opcode: 'opcodeChangeDispersion',
+              text: 'Dispersion Amplitude:[Amplitude]%, Direction R:[Direction_R]° G:[Direction_G]° B:[Direction_B]°',
+              blockType: Scratch.BlockType.COMMAND,
+              arguments: {
+                Amplitude: {
+                  type: Scratch.ArgumentType.NUMBER,
+                  defaultValue: 1
+                },
+                Direction_R: {
+                  type: Scratch.ArgumentType.NUMBER,
+                  defaultValue: 120
+                },
+                Direction_G: {
+                  type: Scratch.ArgumentType.NUMBER,
+                  defaultValue: 240
+                },
+                Direction_B: {
+                  type: Scratch.ArgumentType.NUMBER,
+                  defaultValue: 360
+                }
+              },
+            },
+
+
 
           ],
           menus: {
-            MENU: {
+            PostProcess: {
               acceptReporters: true,
-              items: "getDynamicMenuItems"
-            },
+              items: [
+                "glitch",
+                "dispersion",
+                "none",
+              ]
+            }
           }
         };
       }
-      opcodeMenuTest({DynamicMenu}) {
-        return DynamicMenu;
+      
+      opcodeChangePostProcess({Menu}) {
+
+          if (Menu == "glitch"){
+            drawprogram = shaderPrograms.glitch;
+            setUniform2fv(gl,"_BlockSize", 8, 8);
+          }
+            
+            
+          if (Menu ==  "none"){
+            drawprogram = shaderPrograms.none;
+          }
+            
+          if (Menu ==  "dispersion"){
+            drawprogram = shaderPrograms.dispersion;
+            setUniform2fv(gl,"direction_r", 1.0, 0.0);
+            setUniform2fv(gl,"direction_g", 0.4, 1.0 );
+            setUniform2fv(gl,"direction_b",  -0.7, -0.3);
+          }
+            
+        
+        drawprogram_mode = Menu;
+        uniformLocationBuffer = {};
+        if (gl.isProgram(drawprogram)==false){
+          console.error('postprocess program not is valid.')
+        }
+          positionLocation = gl.getAttribLocation(drawprogram, 'a_position');
+          texcoordLocation = gl.getAttribLocation(drawprogram, 'a_texcoord');
+         textureLocation = gl.getUniformLocation(drawprogram, 'u_texture');
+  
+        gl.uniform1i(textureLocation, framebuffertexture);
       }
-      getDynamicMenuItems(args,arg2) {
-        console.log(args,arg2)
-        return ["你还觉得","一切","从未改变","吗？"];
-        ["如果可以",'一切都应该停在这里','我怕了.','我害怕了.','我开始害怕了.' ];
-        ['是我自己杀死过去的自己的','为什么我开始感到怀念了'];
-        ['人是不是','只有在','失去了','才会','懂得珍惜?']; 
-        ["未知苦处","不信神佛"];
+      opcodeChangeDispersion({Amplitude,Direction_R,Direction_G,Direction_B}){
+        if (drawprogram_mode != "dispersion" ){ 
+          console.log("you're say lie. you're not using dispersion effect.")
+          return
+        }
+
+        setUniform1f(gl,"_Amplitude", Amplitude/100.0);
+        setUniform2fv(gl,"direction_r", Math.cos(deg2rad(Direction_R)),Math.sin(deg2rad(Direction_R)) );
+        setUniform2fv(gl,"direction_g", Math.cos(deg2rad(Direction_G)),Math.sin(deg2rad(Direction_G)) );
+        setUniform2fv(gl,"direction_b", Math.cos(deg2rad(Direction_B)),Math.sin(deg2rad(Direction_B)) );
+
       }
+      opcodeChangeGlitch({Amplitude,Time,BlockSize_X,BlockSize_Y}){
+        if (drawprogram_mode != "glitch" ){ 
+          console.log("you're say lie. you're not using glitch effect.")
+          return
+        }
+        setUniform1f(gl,"_Amplitude", Amplitude/100.0);
+        setUniform1f(gl,"_Time", Time);
+        setUniform2fv(gl,"_BlockSize", BlockSize_X,BlockSize_Y);
+
+      }
+
       opcodeUniform2fv({NAME,X,Y}) {
         setUniform2fv(gl,NAME,X,Y);
 
